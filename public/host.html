@@ -231,8 +231,11 @@ function setPanoError(msg) {
 async function showPanorama(lat, lng, heading, pitch, apiKey) {
   if (!apiKey) { setPanoError('No API key set — add MAPS_API_KEY in Railway variables'); return; }
 
-  document.getElementById('panorama').innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8080a8">Loading Street View…</div>';
+  const el = document.getElementById('panorama');
+
+  if (!panorama) {
+    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8080a8">Loading Street View…</div>';
+  }
 
   try {
     await loadMaps(apiKey);
@@ -241,13 +244,11 @@ async function showPanorama(lat, lng, heading, pitch, apiKey) {
     return;
   }
 
-  const el = document.getElementById('panorama');
-  el.innerHTML = '';
-
   if (panorama) {
     panorama.setPosition({ lat, lng });
     panorama.setPov({ heading, pitch });
   } else {
+    el.innerHTML = '';
     panorama = new google.maps.StreetViewPanorama(el, {
       position: { lat, lng },
       pov: { heading, pitch },
