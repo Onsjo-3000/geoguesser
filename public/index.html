@@ -100,7 +100,6 @@
   if (urlCode) {
     document.getElementById('full-landing').style.display = 'none';
     document.getElementById('qr-landing').style.display = 'block';
-    document.getElementById('qr-join-name').focus();
     document.getElementById('qr-join-btn').onclick = () => {
       const name = document.getElementById('qr-join-name').value.trim();
       if (!name) { shake('qr-join-name'); showToast('Enter your name'); return; }
