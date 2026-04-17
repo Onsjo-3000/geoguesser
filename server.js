@@ -9,6 +9,8 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+const MAPS_API_KEY = process.env.MAPS_API_KEY || '';
+
 // 25 hand-picked locations with good Street View coverage
 const LOCATIONS = [
   { lat: 48.8584,  lng: 2.2945,   heading: 265, pitch: 0 },   // Paris – near Eiffel Tower
@@ -73,13 +75,13 @@ function getLeaderboard(room) {
 io.on('connection', (socket) => {
 
   // ── HOST: create room ──────────────────────────────────────────
-  socket.on('create-room', ({ apiKey, rounds }) => {
+  socket.on('create-room', ({ rounds }) => {
     let code;
     do { code = makeCode(); } while (rooms.has(code));
 
     const room = {
       hostId: socket.id,
-      apiKey: apiKey || '',
+      apiKey: MAPS_API_KEY,
       totalRounds: Math.min(Math.max(parseInt(rounds) || 5, 1), 10),
       players: new Map(),
       state: 'lobby',

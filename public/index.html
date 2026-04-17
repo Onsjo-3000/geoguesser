@@ -33,12 +33,6 @@
     <p>Open this on a big screen. Players join from their phones.</p>
 
     <div class="form-group">
-      <label>Google Maps API Key</label>
-      <input type="password" id="api-key" class="input" placeholder="AIza...">
-      <small><a href="#" id="key-help-link">How to get a free API key →</a></small>
-    </div>
-
-    <div class="form-group">
       <label>Number of rounds</label>
       <div class="rounds-picker">
         <button class="rounds-btn" id="rounds-minus">−</button>
@@ -75,20 +69,6 @@
   </div>
 </div>
 
-<!-- API Key Modal -->
-<div class="modal-overlay" id="key-modal">
-  <div class="modal-box">
-    <h3>Getting a free Google Maps API key</h3>
-    <ol>
-      <li>Go to <strong>console.cloud.google.com</strong> and create a project</li>
-      <li>Open <strong>APIs &amp; Services → Library</strong></li>
-      <li>Enable <strong>Maps JavaScript API</strong></li>
-      <li>Go to <strong>Credentials → Create API Key</strong></li>
-      <li>Paste the key above — free tier covers 28 000 Street View loads/month</li>
-    </ol>
-    <button class="btn btn-primary modal-close" id="key-modal-close">Got it</button>
-  </div>
-</div>
 
 <div class="toast" id="toast"></div>
 
@@ -113,11 +93,6 @@
     document.getElementById('rounds-val').textContent = rounds;
   };
 
-  // API key modal
-  document.getElementById('key-help-link').onclick = (e) => { e.preventDefault(); document.getElementById('key-modal').classList.add('open'); };
-  document.getElementById('key-modal-close').onclick = () => document.getElementById('key-modal').classList.remove('open');
-  document.getElementById('key-modal').onclick = (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); };
-
   // Auto-uppercase join code
   document.getElementById('join-code').addEventListener('input', (e) => {
     const pos = e.target.selectionStart;
@@ -127,9 +102,6 @@
 
   // Create game
   document.getElementById('create-btn').onclick = () => {
-    const apiKey = document.getElementById('api-key').value.trim();
-    if (!apiKey) { shake('api-key'); showToast('API key is required'); return; }
-    sessionStorage.setItem('geo_api_key', apiKey);
     sessionStorage.setItem('geo_rounds', rounds);
     location.href = '/host.html';
   };

@@ -419,15 +419,8 @@ document.getElementById('skip-btn').onclick  = () => {
 };
 
 // ── Init: create room on page load ─────────────────────────────
-const apiKey = sessionStorage.getItem('geo_api_key');
-const rounds  = sessionStorage.getItem('geo_rounds') || 5;
-
-if (!apiKey) {
-  showToast('No API key found — redirecting…');
-  setTimeout(() => location.href = '/', 1500);
-} else {
-  socket.emit('create-room', { apiKey, rounds: parseInt(rounds) });
-}
+const rounds = sessionStorage.getItem('geo_rounds') || 5;
+socket.emit('create-room', { rounds: parseInt(rounds) });
 </script>
 </body>
 </html>
