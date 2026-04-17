@@ -10,7 +10,10 @@
   <link rel="stylesheet" href="style.css">
   <style>
     body { overflow: hidden; }
-    #panorama { width: 100%; height: 100%; }
+    #panorama { width: 100%; height: 100%; min-height: 0; }
+    #host-game { flex: 1; min-width: 0; }
+    #host-results { flex: 1; min-width: 0; }
+    #host-lobby, #host-gameover { flex: 1; min-width: 0; }
     .leaflet-container { background: #1a1a2e; }
     #result-map { height: 340px; border-radius: 12px; }
   </style>
@@ -235,7 +238,14 @@ async function showPanorama(lat, lng, heading, pitch, apiKey) {
       panControl: true,
       zoomControl: false,
     });
+    panorama.addListener('status_changed', () => {
+      if (panorama.getStatus() !== 'OK') {
+        el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:#8080a8"><div style="font-size:3rem">🌍</div><div>No Street View here — host can skip this round</div></div>';
+      }
+    });
   }
+  // Force repaint after section becomes visible
+  setTimeout(() => google.maps.event.trigger(panorama, 'resize'), 50);
 }
 
 // ── Result map ─────────────────────────────────────────────────
