@@ -65,7 +65,14 @@
 
   <!-- ── GAME ────────────────────────────────────────────────── -->
   <section class="section" id="host-game">
-    <div id="panorama"></div>
+    <div style="flex:1;position:relative;min-width:0">
+      <div id="panorama" style="position:absolute;inset:0"></div>
+      <div id="pano-overlay" style="position:absolute;inset:0;display:none;background:#0a0e1a;z-index:10;
+           align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#8080a8;padding:32px;text-align:center">
+        <div style="font-size:3rem" id="pano-overlay-icon">⚠️</div>
+        <div style="font-size:1.1rem;color:#e8e8f8" id="pano-overlay-msg"></div>
+      </div>
+    </div>
 
     <div class="game-sidebar">
       <div class="sidebar-round" id="sidebar-round">Round 1 / 5</div>
@@ -220,35 +227,34 @@ function loadMaps(apiKey) {
   });
 }
 
-function setPanoError(msg) {
-  document.getElementById('panorama').innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px;color:#8080a8;padding:32px;text-align:center">
-      <div style="font-size:3rem">⚠️</div>
-      <div style="font-size:1.1rem;color:#e8e8f8">${msg}</div>
-    </div>`;
+function showOverlay(msg, icon = '⚠️') {
+  document.getElementById('pano-overlay-icon').textContent = icon;
+  document.getElementById('pano-overlay-msg').innerHTML = msg;
+  document.getElementById('pano-overlay').style.display = 'flex';
+}
+function hideOverlay() {
+  document.getElementById('pano-overlay').style.display = 'none';
 }
 
 async function showPanorama(lat, lng, heading, pitch, apiKey) {
-  if (!apiKey) { setPanoError('No API key set — add MAPS_API_KEY in Railway variables'); return; }
+  if (!apiKey) { showOverlay('No API key set — add MAPS_API_KEY in Railway variables'); return; }
 
-  const el = document.getElementById('panorama');
-
-  if (!panorama) {
-    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8080a8">Loading Street View…</div>';
-  }
+  if (!panorama) showOverlay('Loading Street View…', '🌍');
 
   try {
     await loadMaps(apiKey);
   } catch {
-    setPanoError('Failed to load Google Maps.<br>Check that the Maps JavaScript API is enabled and the key has no referrer restrictions.');
+    showOverlay('Failed to load Google Maps.<br>Check that the Maps JavaScript API is enabled and the key has no referrer restrictions.');
     return;
   }
 
+  const el = document.getElementById('panorama');
+
   if (panorama) {
+    hideOverlay();
     panorama.setPosition({ lat, lng });
     panorama.setPov({ heading, pitch });
   } else {
-    el.innerHTML = '';
     panorama = new google.maps.StreetViewPanorama(el, {
       position: { lat, lng },
       pov: { heading, pitch },
@@ -263,9 +269,9 @@ async function showPanorama(lat, lng, heading, pitch, apiKey) {
       zoomControl: false,
     });
     panorama.addListener('status_changed', () => {
-      if (panorama.getStatus() !== 'OK') {
-        setPanoError('No Street View coverage here — click Skip round');
-      }
+      const s = panorama.getStatus();
+      if (s === 'OK')                hideOverlay();
+      else if (s === 'ZERO_RESULTS') showOverlay('No Street View coverage here — click Skip round', '🗺️');
     });
   }
   setTimeout(() => google.maps.event.trigger(panorama, 'resize'), 50);
