@@ -208,19 +208,42 @@ function setTimer(t) {
 
 // ── Google Maps loader ─────────────────────────────────────────
 function loadMaps(apiKey) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (mapsLoaded) { resolve(); return; }
     window._mapsReady = () => { mapsLoaded = true; resolve(); };
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&callback=_mapsReady&v=weekly&loading=async`;
-    s.onerror = () => showToast('Failed to load Google Maps — check your API key');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&callback=_mapsReady&v=weekly`;
+    s.onerror = () => {
+      reject(new Error('script-load-failed'));
+    };
     document.head.appendChild(s);
   });
 }
 
+function setPanoError(msg) {
+  document.getElementById('panorama').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px;color:#8080a8;padding:32px;text-align:center">
+      <div style="font-size:3rem">⚠️</div>
+      <div style="font-size:1.1rem;color:#e8e8f8">${msg}</div>
+    </div>`;
+}
+
 async function showPanorama(lat, lng, heading, pitch, apiKey) {
-  await loadMaps(apiKey);
+  if (!apiKey) { setPanoError('No API key set — add MAPS_API_KEY in Railway variables'); return; }
+
+  document.getElementById('panorama').innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#8080a8">Loading Street View…</div>';
+
+  try {
+    await loadMaps(apiKey);
+  } catch {
+    setPanoError('Failed to load Google Maps.<br>Check that the Maps JavaScript API is enabled and the key has no referrer restrictions.');
+    return;
+  }
+
   const el = document.getElementById('panorama');
+  el.innerHTML = '';
+
   if (panorama) {
     panorama.setPosition({ lat, lng });
     panorama.setPov({ heading, pitch });
@@ -240,11 +263,10 @@ async function showPanorama(lat, lng, heading, pitch, apiKey) {
     });
     panorama.addListener('status_changed', () => {
       if (panorama.getStatus() !== 'OK') {
-        el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:#8080a8"><div style="font-size:3rem">🌍</div><div>No Street View here — host can skip this round</div></div>';
+        setPanoError('No Street View coverage here — click Skip round');
       }
     });
   }
-  // Force repaint after section becomes visible
   setTimeout(() => google.maps.event.trigger(panorama, 'resize'), 50);
 }
 
