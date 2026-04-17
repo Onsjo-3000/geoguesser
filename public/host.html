@@ -38,7 +38,7 @@
         <div style="font-size:1.1rem;color:var(--text-muted);margin-bottom:4px;" id="join-url-display"></div>
         <div class="code-badge" id="code-badge"></div>
         <div class="lobby-hint">or scan the QR code</div>
-        <canvas id="qr-canvas"></canvas>
+        <div id="qr-canvas"></div>
         <div class="lobby-hint" style="margin-top:4px;">Room code: <strong id="lobby-code-text" style="color:var(--primary)"></strong></div>
       </div>
 
@@ -136,7 +136,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 // ── State ──────────────────────────────────────────────────────
@@ -326,9 +326,10 @@ socket.on('room-created', ({ code }) => {
   const joinUrl = `${location.origin}/?code=${code}`;
   document.getElementById('join-url-display').textContent = location.host;
 
-  QRCode.toCanvas(document.getElementById('qr-canvas'), joinUrl, {
-    width: 180, margin: 1,
-    color: { dark: '#1a1a2e', light: '#ffffff' }
+  new QRCode(document.getElementById('qr-canvas'), {
+    text: joinUrl,
+    width: 180, height: 180,
+    colorDark: '#1a1a2e', colorLight: '#ffffff',
   });
 });
 
