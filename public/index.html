@@ -24,7 +24,8 @@
   <p class="tagline">Multiplayer geography challenge — big screen + everyone's phone</p>
 </header>
 
-<div class="landing-cards fade-in">
+<!-- Full landing (no code in URL) -->
+<div class="landing-cards fade-in" id="full-landing">
 
   <!-- Create Game -->
   <div class="card landing-card">
@@ -69,18 +70,46 @@
   </div>
 </div>
 
+<!-- QR join view (code in URL) -->
+<div class="fade-in" id="qr-landing" style="display:none; width:100%; max-width:420px;">
+  <div class="card landing-card">
+    <div class="card-icon">📍</div>
+    <h2>You're joining a game!</h2>
+    <p>Enter your name to jump in.</p>
+
+    <div class="form-group">
+      <label>Your Name</label>
+      <input type="text" id="qr-join-name" class="input" placeholder="Enter your name…"
+             maxlength="20" autocomplete="off">
+    </div>
+
+    <button class="btn btn-accent btn-full btn-lg" id="qr-join-btn">
+      Join Game &nbsp;→
+    </button>
+  </div>
+</div>
+
 
 <div class="toast" id="toast"></div>
 
 <script>
   let rounds = 5;
 
-  // Pre-fill code from URL (QR scan)
+  // QR scan: show only the name input
   const urlCode = new URLSearchParams(location.search).get('code');
   if (urlCode) {
-    document.getElementById('join-code').value = urlCode.toUpperCase();
-    document.getElementById('join-name').focus();
-    document.querySelector('.landing-cards').scrollTop = 9999;
+    document.getElementById('full-landing').style.display = 'none';
+    document.getElementById('qr-landing').style.display = 'block';
+    document.getElementById('qr-join-name').focus();
+    document.getElementById('qr-join-btn').onclick = () => {
+      const name = document.getElementById('qr-join-name').value.trim();
+      if (!name) { shake('qr-join-name'); showToast('Enter your name'); return; }
+      sessionStorage.setItem('geo_name', name);
+      location.href = `/play.html?code=${urlCode.toUpperCase()}`;
+    };
+    document.getElementById('qr-join-name').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('qr-join-btn').click();
+    });
   }
 
   // Rounds picker
