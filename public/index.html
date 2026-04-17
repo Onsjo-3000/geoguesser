@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoGuesser Live</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="landing-page">
+
+<div class="landing-bg">
+  <div class="globe-ring"></div>
+  <div class="globe-ring r2"></div>
+  <div class="globe-ring r3"></div>
+</div>
+
+<header class="landing-header fade-in">
+  <div class="logo">
+    <span class="logo-icon">🌍</span>
+    <span class="logo-text">GeoGuesser <span class="logo-live">LIVE</span></span>
+  </div>
+  <p class="tagline">Multiplayer geography challenge — big screen + everyone's phone</p>
+</header>
+
+<div class="landing-cards fade-in">
+
+  <!-- Create Game -->
+  <div class="card landing-card">
+    <div class="card-icon">🖥️</div>
+    <h2>Host a Game</h2>
+    <p>Open this on a big screen. Players join from their phones.</p>
+
+    <div class="form-group">
+      <label>Google Maps API Key</label>
+      <input type="password" id="api-key" class="input" placeholder="AIza...">
+      <small><a href="#" id="key-help-link">How to get a free API key →</a></small>
+    </div>
+
+    <div class="form-group">
+      <label>Number of rounds</label>
+      <div class="rounds-picker">
+        <button class="rounds-btn" id="rounds-minus">−</button>
+        <span class="rounds-val" id="rounds-val">5</span>
+        <button class="rounds-btn" id="rounds-plus">+</button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-full btn-lg" id="create-btn">
+      Create Game &nbsp;→
+    </button>
+  </div>
+
+  <!-- Join Game -->
+  <div class="card landing-card">
+    <div class="card-icon">📱</div>
+    <h2>Join a Game</h2>
+    <p>Enter the 4-letter code shown on the host screen.</p>
+
+    <div class="form-group">
+      <label>Room Code</label>
+      <input type="text" id="join-code" class="input code-input" placeholder="ABCD"
+             maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    </div>
+
+    <div class="form-group">
+      <label>Your Name</label>
+      <input type="text" id="join-name" class="input" placeholder="Enter your name…" maxlength="20">
+    </div>
+
+    <button class="btn btn-accent btn-full btn-lg" id="join-btn">
+      Join Game &nbsp;→
+    </button>
+  </div>
+</div>
+
+<!-- API Key Modal -->
+<div class="modal-overlay" id="key-modal">
+  <div class="modal-box">
+    <h3>Getting a free Google Maps API key</h3>
+    <ol>
+      <li>Go to <strong>console.cloud.google.com</strong> and create a project</li>
+      <li>Open <strong>APIs &amp; Services → Library</strong></li>
+      <li>Enable <strong>Maps JavaScript API</strong></li>
+      <li>Go to <strong>Credentials → Create API Key</strong></li>
+      <li>Paste the key above — free tier covers 28 000 Street View loads/month</li>
+    </ol>
+    <button class="btn btn-primary modal-close" id="key-modal-close">Got it</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let rounds = 5;
+
+  // Pre-fill code from URL (QR scan)
+  const urlCode = new URLSearchParams(location.search).get('code');
+  if (urlCode) {
+    document.getElementById('join-code').value = urlCode.toUpperCase();
+    document.getElementById('join-name').focus();
+    document.querySelector('.landing-cards').scrollTop = 9999;
+  }
+
+  // Rounds picker
+  document.getElementById('rounds-minus').onclick = () => {
+    rounds = Math.max(1, rounds - 1);
+    document.getElementById('rounds-val').textContent = rounds;
+  };
+  document.getElementById('rounds-plus').onclick = () => {
+    rounds = Math.min(10, rounds + 1);
+    document.getElementById('rounds-val').textContent = rounds;
+  };
+
+  // API key modal
+  document.getElementById('key-help-link').onclick = (e) => { e.preventDefault(); document.getElementById('key-modal').classList.add('open'); };
+  document.getElementById('key-modal-close').onclick = () => document.getElementById('key-modal').classList.remove('open');
+  document.getElementById('key-modal').onclick = (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); };
+
+  // Auto-uppercase join code
+  document.getElementById('join-code').addEventListener('input', (e) => {
+    const pos = e.target.selectionStart;
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    e.target.setSelectionRange(pos, pos);
+  });
+
+  // Create game
+  document.getElementById('create-btn').onclick = () => {
+    const apiKey = document.getElementById('api-key').value.trim();
+    if (!apiKey) { shake('api-key'); showToast('API key is required'); return; }
+    sessionStorage.setItem('geo_api_key', apiKey);
+    sessionStorage.setItem('geo_rounds', rounds);
+    location.href = '/host.html';
+  };
+
+  // Join game
+  document.getElementById('join-btn').onclick = joinGame;
+  document.getElementById('join-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGame(); });
+  document.getElementById('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('join-name').focus(); });
+
+  function joinGame() {
+    const code = document.getElementById('join-code').value.trim().toUpperCase();
+    const name = document.getElementById('join-name').value.trim();
+    if (code.length !== 4) { shake('join-code'); showToast('Enter a 4-character code'); return; }
+    if (!name)              { shake('join-name'); showToast('Enter your name');          return; }
+    sessionStorage.setItem('geo_name', name);
+    location.href = `/play.html?code=${code}`;
+  }
+
+  function shake(id) {
+    const el = document.getElementById(id);
+    el.classList.remove('error');
+    void el.offsetWidth;
+    el.classList.add('error');
+    setTimeout(() => el.classList.remove('error'), 600);
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+</script>
+</body>
+</html>

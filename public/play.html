@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GeoGuesser Live — Play</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    html, body { overflow: hidden; touch-action: none; }
+    .leaflet-container { background: #1a2035; }
+    .leaflet-control-attribution { display: none; }
+    #guess-map { position: absolute; inset: 0; }
+    .submit-bar { z-index: 500; }
+  </style>
+</head>
+<body class="play-page">
+
+<!-- Top bar (hidden until game starts) -->
+<div class="play-topbar" id="play-topbar" style="display:none">
+  <span class="round-info" id="round-info">Round 1/5</span>
+  <span class="timer-mini" id="timer-mini">60</span>
+</div>
+
+<div class="play-body" id="play-body">
+
+  <!-- ── LOBBY ─────────────────────────────────────────────── -->
+  <section class="section active" id="play-lobby">
+    <div style="font-size:2.5rem">🌍</div>
+    <h2 id="lobby-welcome">Joined!</h2>
+    <div class="play-name-display" id="lobby-name"></div>
+    <p class="waiting-icon">⏳</p>
+    <p>Waiting for the host to start…</p>
+    <div style="margin-top:12px;width:100%;max-width:340px;">
+      <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;margin-bottom:8px;">Players in room</div>
+      <ul class="player-list" id="play-player-list"></ul>
+    </div>
+  </section>
+
+  <!-- ── GUESSING MAP ───────────────────────────────────────── -->
+  <section class="section" id="play-game" style="flex:1;position:relative;overflow:hidden;display:none;">
+    <div id="guess-map"></div>
+    <div class="submit-bar">
+      <div class="submit-hint" id="submit-hint">Tap the map to place your guess</div>
+      <button class="btn btn-primary btn-full btn-lg" id="submit-btn" disabled>
+        Submit Guess
+      </button>
+    </div>
+  </section>
+
+  <!-- ── WAITING AFTER GUESS ───────────────────────────────── -->
+  <section class="section" id="play-waiting">
+    <div style="font-size:3rem">✅</div>
+    <h2>Guess submitted!</h2>
+    <div id="waiting-score" style="font-family:'Space Grotesk',monospace;font-size:2.5rem;font-weight:800;color:var(--primary);"></div>
+    <div id="waiting-dist" class="distance-label"></div>
+    <p class="pulse" style="margin-top:8px;">Waiting for other players…</p>
+  </section>
+
+  <!-- ── ROUND RESULTS ─────────────────────────────────────── -->
+  <section class="section" id="play-results-screen">
+    <div style="font-size:2.5rem" id="results-emoji">📍</div>
+    <div class="score-reveal" id="results-score">0</div>
+    <div class="distance-label" id="results-dist"></div>
+    <div class="divider" style="width:100%;max-width:340px;"></div>
+    <div class="play-lb" id="play-lb-wrap">
+      <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;margin-bottom:8px;">Leaderboard</div>
+      <ul class="leaderboard" id="play-leaderboard"></ul>
+    </div>
+    <p class="pulse" style="font-size:0.85rem;color:var(--text-muted);" id="results-waiting-msg">Waiting for host…</p>
+  </section>
+
+  <!-- ── GAME OVER ──────────────────────────────────────────── -->
+  <section class="section" id="play-gameover-screen">
+    <div style="font-size:3rem">🏆</div>
+    <h2>Game Over!</h2>
+    <div class="score-reveal" id="final-score"></div>
+    <div style="font-size:1rem;color:var(--text-muted);" id="final-rank"></div>
+    <div class="play-lb" style="margin-top:16px;">
+      <ul class="leaderboard" id="play-final-leaderboard"></ul>
+    </div>
+    <button class="btn btn-primary btn-lg" style="margin-top:8px;" onclick="location.href='/'">
+      Play Again
+    </button>
+  </section>
+
+</div><!-- play-body -->
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ── State ──────────────────────────────────────────────────────
+const socket = io();
+let myName = '';
+let guessMap = null;
+let guessMarker = null;
+let submitted = false;
+let timerVal = 60;
+
+// ── Helpers ────────────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('#play-body > .section').forEach(s => {
+    s.classList.remove('active');
+    s.style.display = 'none';
+  });
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  el.style.display = 'flex';
+  if (id === 'play-game') {
+    el.style.display = 'block';
+    setTimeout(() => guessMap && guessMap.invalidateSize(), 100);
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function esc(str) {
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderLB(list, targetId, highlightName) {
+  const medals = ['🥇','🥈','🥉'];
+  const classes = ['gold','silver','bronze'];
+  const ul = document.getElementById(targetId);
+  ul.innerHTML = '';
+  list.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.className = 'lb-row ' + (classes[i] || '') + (p.name === highlightName ? ' your-row' : '');
+    li.innerHTML = `
+      <span class="lb-rank">${medals[i] || (i+1)}</span>
+      <span class="lb-name">${esc(p.name)}</span>
+      <span class="lb-score">${p.score.toLocaleString()}</span>`;
+    ul.appendChild(li);
+  });
+}
+
+function setTimerMini(t) {
+  const el = document.getElementById('timer-mini');
+  el.textContent = t;
+  el.className = 'timer-mini' + (t <= 10 ? ' urgent' : t <= 20 ? ' warn' : '');
+}
+
+// ── Guess map setup ────────────────────────────────────────────
+function initMap() {
+  if (guessMap) return;
+  guessMap = L.map('guess-map', {
+    center: [20, 0], zoom: 2,
+    zoomControl: true, attributionControl: false,
+    tap: true,
+  });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(guessMap);
+
+  guessMap.on('click', (e) => {
+    if (submitted) return;
+    const pinIcon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:22px;height:28px;
+        background:var(--primary);
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        border:3px solid #fff;
+        box-shadow:0 2px 10px rgba(0,0,0,0.5);
+      "></div>`,
+      iconSize: [22, 28], iconAnchor: [11, 28],
+    });
+    if (guessMarker) {
+      guessMarker.setLatLng(e.latlng);
+    } else {
+      guessMarker = L.marker(e.latlng, { icon: pinIcon }).addTo(guessMap);
+    }
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = false;
+    document.getElementById('submit-hint').textContent = 'Move pin to refine, then submit';
+  });
+}
+
+// ── Socket events ──────────────────────────────────────────────
+socket.on('joined-room', ({ code, name }) => {
+  myName = name;
+  document.getElementById('lobby-name').textContent = name;
+});
+
+socket.on('join-error', (msg) => {
+  showToast(msg);
+  setTimeout(() => location.href = '/', 2000);
+});
+
+socket.on('players-update', ({ players }) => {
+  const ul = document.getElementById('play-player-list');
+  ul.innerHTML = '';
+  players.forEach(name => {
+    const li = document.createElement('li');
+    li.innerHTML = `<div class="player-avatar">${esc(name[0])}</div>${esc(name)}`;
+    if (name === myName) li.style.borderLeft = '3px solid var(--primary)';
+    ul.appendChild(li);
+  });
+});
+
+socket.on('round-start', ({ round, total }) => {
+  submitted = false;
+  guessMarker = null;
+
+  document.getElementById('play-topbar').style.display = 'flex';
+  document.getElementById('round-info').textContent = `Round ${round}/${total}`;
+  setTimerMini(60);
+
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('submit-hint').textContent = 'Tap the map to place your guess';
+
+  show('play-game');
+  initMap();
+
+  // Reset map
+  if (guessMarker) { guessMap.removeLayer(guessMarker); guessMarker = null; }
+  guessMap.setView([20, 0], 2);
+  setTimeout(() => guessMap.invalidateSize(), 150);
+});
+
+socket.on('timer-tick', ({ timeLeft }) => {
+  timerVal = timeLeft;
+  setTimerMini(timeLeft);
+  if (timeLeft === 0 && !submitted) {
+    // Time's up — auto-submit center if no pin placed
+    if (!guessMarker) {
+      const center = guessMap.getCenter();
+      socket.emit('submit-guess', { lat: center.lat, lng: center.lng });
+    }
+    submitted = true;
+    show('play-waiting');
+    document.getElementById('waiting-score').textContent = '';
+    document.getElementById('waiting-dist').textContent = "Time's up!";
+  }
+});
+
+socket.on('guess-accepted', ({ score, distance }) => {
+  document.getElementById('waiting-score').textContent = `+${score.toLocaleString()}`;
+  document.getElementById('waiting-dist').innerHTML = `<span>${distance.toLocaleString()} km</span> from the actual location`;
+  show('play-waiting');
+});
+
+socket.on('round-results', ({ leaderboard, roundScore, distance, guessed, round, total, isLast }) => {
+  // Score reveal
+  const emoji = roundScore > 4000 ? '🎯' : roundScore > 2000 ? '😎' : roundScore > 500 ? '🙂' : '😅';
+  document.getElementById('results-emoji').textContent = emoji;
+  document.getElementById('results-score').textContent = `+${roundScore.toLocaleString()}`;
+
+  if (guessed && distance !== null) {
+    document.getElementById('results-dist').innerHTML = `<span>${distance.toLocaleString()} km</span> from the actual location`;
+  } else {
+    document.getElementById('results-dist').textContent = "Didn't guess in time";
+  }
+
+  renderLB(leaderboard, 'play-leaderboard', myName);
+
+  const msg = document.getElementById('results-waiting-msg');
+  msg.textContent = isLast ? 'Waiting for host to show final scores…' : `Waiting for host to start round ${round + 1}…`;
+
+  show('play-results-screen');
+  document.getElementById('play-topbar').style.display = 'none';
+});
+
+socket.on('game-over', ({ leaderboard }) => {
+  const me = leaderboard.find(p => p.name === myName);
+  const rank = leaderboard.findIndex(p => p.name === myName) + 1;
+  document.getElementById('final-score').textContent = me ? me.score.toLocaleString() : '0';
+  const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+  document.getElementById('final-rank').textContent = `${rankEmoji} out of ${leaderboard.length} players`;
+  renderLB(leaderboard, 'play-final-leaderboard', myName);
+  show('play-gameover-screen');
+  document.getElementById('play-topbar').style.display = 'none';
+});
+
+socket.on('host-left', () => {
+  showToast('Host disconnected. Game ended.');
+  setTimeout(() => location.href = '/', 2500);
+});
+
+// ── Submit guess ───────────────────────────────────────────────
+document.getElementById('submit-btn').onclick = () => {
+  if (submitted || !guessMarker) return;
+  submitted = true;
+  const latlng = guessMarker.getLatLng();
+  socket.emit('submit-guess', { lat: latlng.lat, lng: latlng.lng });
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('submit-hint').textContent = 'Guess locked in!';
+  document.getElementById('waiting-score').textContent = '…';
+  document.getElementById('waiting-dist').textContent = 'Calculating…';
+  show('play-waiting');
+};
+
+// ── Init: join room ────────────────────────────────────────────
+const code = new URLSearchParams(location.search).get('code');
+const name = sessionStorage.getItem('geo_name');
+
+if (!code || !name) {
+  showToast('Missing code or name — redirecting…');
+  setTimeout(() => location.href = '/', 1500);
+} else {
+  myName = name;
+  document.getElementById('lobby-name').textContent = name;
+  socket.emit('join-room', { code, name });
+}
+</script>
+</body>
+</html>

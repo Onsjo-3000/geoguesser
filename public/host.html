@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoGuesser Live — Host</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { overflow: hidden; }
+    #panorama { width: 100%; height: 100%; }
+    .leaflet-container { background: #1a1a2e; }
+    #result-map { height: 340px; border-radius: 12px; }
+  </style>
+</head>
+<body class="host-page">
+
+<!-- Top bar -->
+<div class="host-topbar">
+  <div class="topbar-logo">🌍 GeoGuesser Live</div>
+  <div class="topbar-code" id="topbar-code" style="display:none">
+    <span class="topbar-code-label">JOIN CODE</span>
+    <span class="topbar-code-val" id="topbar-code-val"></span>
+  </div>
+  <div class="topbar-players" id="topbar-players" style="display:none"></div>
+</div>
+
+<div class="host-body">
+
+  <!-- ── LOBBY ───────────────────────────────────────────────── -->
+  <section class="section active" id="host-lobby">
+    <div class="lobby-main">
+
+      <div class="lobby-code-section">
+        <h2>Players join at</h2>
+        <div style="font-size:1.1rem;color:var(--text-muted);margin-bottom:4px;" id="join-url-display"></div>
+        <div class="code-badge" id="code-badge"></div>
+        <div class="lobby-hint">or scan the QR code</div>
+        <canvas id="qr-canvas"></canvas>
+        <div class="lobby-hint" style="margin-top:4px;">Room code: <strong id="lobby-code-text" style="color:var(--primary)"></strong></div>
+      </div>
+
+      <div class="lobby-players-section">
+        <h3>Players joined</h3>
+        <ul class="player-list" id="lobby-player-list">
+          <li style="color:var(--text-muted);font-size:0.9rem;" id="waiting-msg">
+            <span class="pulse">Waiting for players…</span>
+          </li>
+        </ul>
+        <div style="margin-top:16px;">
+          <button class="btn btn-success btn-full btn-lg" id="start-btn" disabled>
+            Start Game
+          </button>
+          <div id="start-error" style="color:var(--accent);font-size:0.85rem;margin-top:8px;text-align:center;display:none"></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── GAME ────────────────────────────────────────────────── -->
+  <section class="section" id="host-game">
+    <div id="panorama"></div>
+
+    <div class="game-sidebar">
+      <div class="sidebar-round" id="sidebar-round">Round 1 / 5</div>
+
+      <div class="sidebar-timer-wrap">
+        <div class="timer-wrap" id="timer-wrap">
+          <svg class="timer-svg" viewBox="0 0 90 90">
+            <circle class="timer-bg-circle" cx="45" cy="45" r="39"/>
+            <circle class="timer-ring" id="timer-ring" cx="45" cy="45" r="39"/>
+          </svg>
+          <span class="timer-num" id="timer-num">60</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="guess-count" id="guess-count">0 / 0 guessed</div>
+        <div class="progress-bar" style="margin-bottom:12px;">
+          <div class="progress-fill" id="guess-progress" style="width:0%"></div>
+        </div>
+        <div class="guess-chips" id="guess-chips"></div>
+      </div>
+
+      <div style="margin-top:auto;">
+        <button class="btn btn-ghost btn-full" id="skip-btn">Skip round →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RESULTS ──────────────────────────────────────────────── -->
+  <section class="section" id="host-results">
+    <div class="results-layout fade-in">
+
+      <div class="results-map-section">
+        <div class="round-label" id="results-round-label">Round 1 / 5 Results</div>
+        <div class="results-section-title" style="margin-top:8px;">Guesses</div>
+        <div class="map-container"><div id="result-map"></div></div>
+        <div id="result-map-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
+      </div>
+
+      <div class="results-board-section">
+        <div class="results-section-title">Leaderboard</div>
+        <ul class="leaderboard" id="host-leaderboard"></ul>
+
+        <div class="results-actions" style="margin-top:auto;padding-top:16px;">
+          <button class="btn btn-primary btn-full btn-lg" id="next-btn">Next Round →</button>
+          <button class="btn btn-ghost btn-full" id="end-btn" style="display:none">End Game</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── GAME OVER ────────────────────────────────────────────── -->
+  <section class="section" id="host-gameover">
+    <canvas id="confetti-canvas"></canvas>
+    <div class="gameover-title fade-in">
+      <div class="gameover-icon">🏆</div>
+      <h1>Game Over!</h1>
+      <p>Final standings</p>
+    </div>
+
+    <div class="gameover-board">
+      <ul class="leaderboard" id="final-leaderboard"></ul>
+    </div>
+
+    <button class="btn btn-primary btn-lg" onclick="location.href='/'">Play Again</button>
+  </section>
+
+</div><!-- host-body -->
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ── State ──────────────────────────────────────────────────────
+const socket = io();
+let roomCode = '';
+let resultMap = null;
+let panorama = null;
+let mapsLoaded = false;
+let timerMax = 60;
+const CIRCUMFERENCE = 2 * Math.PI * 39; // r=39
+
+// ── Helpers ────────────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.host-body > .section').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function codeBadge(code) {
+  const el = document.getElementById('code-badge');
+  el.innerHTML = '';
+  for (const ch of code) {
+    const d = document.createElement('div');
+    d.className = 'code-char';
+    d.textContent = ch;
+    el.appendChild(d);
+  }
+}
+
+function renderLB(list, targetId, showDelta = false) {
+  const medals = ['🥇', '🥈', '🥉'];
+  const classes = ['gold', 'silver', 'bronze'];
+  const ul = document.getElementById(targetId);
+  ul.innerHTML = '';
+  list.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.className = 'lb-row ' + (classes[i] || '');
+    li.innerHTML = `
+      <span class="lb-rank">${medals[i] || (i + 1)}</span>
+      <span class="lb-name">${esc(p.name)}</span>
+      ${showDelta && p.roundScore ? `<span class="lb-delta">+${p.roundScore}</span>` : ''}
+      <span class="lb-score">${p.score.toLocaleString()}</span>`;
+    ul.appendChild(li);
+  });
+}
+
+function esc(str) {
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function setTimer(t) {
+  const ring = document.getElementById('timer-ring');
+  const num  = document.getElementById('timer-num');
+  const wrap = document.getElementById('timer-wrap');
+  num.textContent = t;
+  const offset = CIRCUMFERENCE * (1 - t / timerMax);
+  ring.style.strokeDashoffset = offset;
+  wrap.className = 'timer-wrap' + (t <= 10 ? ' urgent' : t <= 20 ? ' warn' : '');
+}
+
+// ── Google Maps loader ─────────────────────────────────────────
+function loadMaps(apiKey) {
+  return new Promise((resolve) => {
+    if (mapsLoaded) { resolve(); return; }
+    window._mapsReady = () => { mapsLoaded = true; resolve(); };
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&callback=_mapsReady&v=weekly&loading=async`;
+    s.onerror = () => showToast('Failed to load Google Maps — check your API key');
+    document.head.appendChild(s);
+  });
+}
+
+async function showPanorama(lat, lng, heading, pitch, apiKey) {
+  await loadMaps(apiKey);
+  const el = document.getElementById('panorama');
+  if (panorama) {
+    panorama.setPosition({ lat, lng });
+    panorama.setPov({ heading, pitch });
+  } else {
+    panorama = new google.maps.StreetViewPanorama(el, {
+      position: { lat, lng },
+      pov: { heading, pitch },
+      zoom: 1,
+      showRoadLabels: false,
+      addressControl: false,
+      enableCloseButton: false,
+      fullscreenControl: false,
+      motionTracking: false,
+      motionTrackingControl: false,
+      panControl: true,
+      zoomControl: false,
+    });
+  }
+}
+
+// ── Result map ─────────────────────────────────────────────────
+const COLORS = ['#6c63ff','#ff6b6b','#ffd166','#6bcb77','#4ecdc4','#f9a825','#ab47bc','#ef5350','#26c6da','#d4e157'];
+
+function showResultMap(actualLat, actualLng, guesses) {
+  if (resultMap) { resultMap.remove(); resultMap = null; }
+  resultMap = L.map('result-map', { zoomControl: true, attributionControl: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(resultMap);
+
+  const actual = L.latLng(actualLat, actualLng);
+  const bounds = L.latLngBounds([actual]);
+
+  // Actual location marker
+  L.marker(actual, {
+    icon: L.divIcon({
+      className: '',
+      html: '<div style="width:20px;height:20px;border-radius:50%;background:#6bcb77;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.6)"></div>',
+      iconSize: [20, 20], iconAnchor: [10, 10],
+    })
+  }).addTo(resultMap).bindPopup('<strong>Actual location</strong>');
+
+  const legend = document.getElementById('result-map-legend');
+  legend.innerHTML = '<span style="color:var(--success);font-size:0.8rem;font-weight:600">● Actual</span>';
+
+  guesses.forEach((g, i) => {
+    const color = COLORS[i % COLORS.length];
+    const gLatLng = L.latLng(g.lat, g.lng);
+    bounds.extend(gLatLng);
+
+    L.marker(gLatLng, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.5)"></div>`,
+        iconSize: [16, 16], iconAnchor: [8, 8],
+      })
+    }).addTo(resultMap).bindPopup(`<strong>${esc(g.name)}</strong><br>${g.distance.toLocaleString()} km away<br>+${g.score.toLocaleString()} pts`);
+
+    L.polyline([actual, gLatLng], { color, weight: 1.5, opacity: 0.6, dashArray: '5 5' }).addTo(resultMap);
+
+    const chip = document.createElement('span');
+    chip.style.cssText = `color:${color};font-size:0.78rem;font-weight:600`;
+    chip.textContent = `● ${g.name}`;
+    legend.appendChild(chip);
+  });
+
+  setTimeout(() => resultMap.fitBounds(bounds, { padding: [24, 24] }), 100);
+}
+
+// ── Confetti ───────────────────────────────────────────────────
+function launchConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  canvas.width = innerWidth; canvas.height = innerHeight;
+  const ctx = canvas.getContext('2d');
+  const pieces = Array.from({ length: 120 }, () => ({
+    x: Math.random() * innerWidth, y: -20,
+    vx: (Math.random() - 0.5) * 4, vy: Math.random() * 3 + 2,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    size: Math.random() * 8 + 4, angle: Math.random() * 360, spin: (Math.random() - 0.5) * 10,
+  }));
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.angle += p.spin;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle * Math.PI / 180);
+      ctx.fillStyle = p.color; ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      ctx.restore();
+    });
+    if (pieces.some(p => p.y < innerHeight)) requestAnimationFrame(draw);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  draw();
+}
+
+// ── Socket events ──────────────────────────────────────────────
+socket.on('room-created', ({ code }) => {
+  roomCode = code;
+
+  // Top bar
+  document.getElementById('topbar-code-val').textContent = code;
+  document.getElementById('topbar-code').style.display = 'flex';
+  document.getElementById('topbar-players').style.display = 'block';
+
+  // Lobby badge + QR
+  document.getElementById('lobby-code-text').textContent = code;
+  codeBadge(code);
+
+  const joinUrl = `${location.origin}/?code=${code}`;
+  document.getElementById('join-url-display').textContent = location.host;
+
+  QRCode.toCanvas(document.getElementById('qr-canvas'), joinUrl, {
+    width: 180, margin: 1,
+    color: { dark: '#1a1a2e', light: '#ffffff' }
+  });
+});
+
+socket.on('players-update', ({ players }) => {
+  const list = document.getElementById('lobby-player-list');
+  const wait = document.getElementById('waiting-msg');
+  if (wait) wait.remove();
+
+  list.innerHTML = '';
+  players.forEach(name => {
+    const li = document.createElement('li');
+    li.innerHTML = `<div class="player-avatar">${esc(name[0])}</div>${esc(name)}`;
+    list.appendChild(li);
+  });
+
+  document.getElementById('start-btn').disabled = players.length === 0;
+  document.getElementById('topbar-players').textContent = `${players.length} player${players.length !== 1 ? 's' : ''}`;
+});
+
+socket.on('round-start', ({ round, total, lat, lng, heading, pitch, apiKey }) => {
+  show('host-game');
+  document.getElementById('sidebar-round').textContent = `Round ${round} / ${total}`;
+  document.getElementById('guess-count').textContent = `0 / ? guessed`;
+  document.getElementById('guess-chips').innerHTML = '';
+  document.getElementById('guess-progress').style.width = '0%';
+  setTimer(60);
+  showPanorama(lat, lng, heading, pitch, apiKey);
+});
+
+socket.on('timer-tick', ({ timeLeft }) => setTimer(timeLeft));
+
+socket.on('guess-progress', ({ playerName, guessCount, totalPlayers }) => {
+  document.getElementById('guess-count').textContent = `${guessCount} / ${totalPlayers} guessed`;
+  document.getElementById('guess-progress').style.width = `${(guessCount / totalPlayers) * 100}%`;
+  const chip = document.createElement('div');
+  chip.className = 'guess-chip';
+  chip.textContent = playerName;
+  document.getElementById('guess-chips').appendChild(chip);
+});
+
+socket.on('round-results', ({ actualLat, actualLng, guesses, leaderboard, round, total, isLast }) => {
+  show('host-results');
+  document.getElementById('results-round-label').textContent = `Round ${round} / ${total} Results`;
+  showResultMap(actualLat, actualLng, guesses);
+
+  // Attach roundScore to leaderboard for display
+  const lbWithDelta = leaderboard.map(p => {
+    const g = guesses.find(g => g.name === p.name);
+    return { ...p, roundScore: g ? g.score : 0 };
+  });
+  renderLB(lbWithDelta, 'host-leaderboard', true);
+
+  const nextBtn = document.getElementById('next-btn');
+  const endBtn  = document.getElementById('end-btn');
+  if (isLast) {
+    nextBtn.textContent = 'Show Final Scores 🏆';
+    endBtn.style.display = 'none';
+  } else {
+    nextBtn.textContent = `Next Round (${round + 1}/${total}) →`;
+    endBtn.style.display = 'block';
+  }
+});
+
+socket.on('game-over', ({ leaderboard }) => {
+  show('host-gameover');
+  renderLB(leaderboard, 'final-leaderboard');
+  launchConfetti();
+});
+
+socket.on('start-error', (msg) => {
+  const el = document.getElementById('start-error');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+});
+
+socket.on('host-left', () => {
+  showToast('Connection lost. Returning home…');
+  setTimeout(() => location.href = '/', 2000);
+});
+
+// ── Button handlers ────────────────────────────────────────────
+document.getElementById('start-btn').onclick = () => socket.emit('start-game');
+document.getElementById('next-btn').onclick  = () => socket.emit('next-round');
+document.getElementById('end-btn').onclick   = () => socket.emit('next-round');
+document.getElementById('skip-btn').onclick  = () => {
+  if (confirm('Skip this round and show results?')) socket.emit('next-round');
+};
+
+// ── Init: create room on page load ─────────────────────────────
+const apiKey = sessionStorage.getItem('geo_api_key');
+const rounds  = sessionStorage.getItem('geo_rounds') || 5;
+
+if (!apiKey) {
+  showToast('No API key found — redirecting…');
+  setTimeout(() => location.href = '/', 1500);
+} else {
+  socket.emit('create-room', { apiKey, rounds: parseInt(rounds) });
+}
+</script>
+</body>
+</html>
