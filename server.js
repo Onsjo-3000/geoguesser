@@ -11,6 +11,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MAPS_API_KEY = process.env.MAPS_API_KEY || '';
 
+app.get('/api/maps-key', (req, res) => {
+  if (!MAPS_API_KEY) return res.status(500).json({ error: 'MAPS_API_KEY not set on server' });
+  res.json({ key: MAPS_API_KEY });
+});
+
 // 25 hand-picked locations with good Street View coverage
 const LOCATIONS = [
   { lat: 48.8584,  lng: 2.2945,   heading: 265, pitch: 0 },   // Paris – near Eiffel Tower

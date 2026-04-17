@@ -381,14 +381,20 @@ socket.on('players-update', ({ players }) => {
   document.getElementById('topbar-players').textContent = `${players.length} player${players.length !== 1 ? 's' : ''}`;
 });
 
-socket.on('round-start', ({ round, total, lat, lng, heading, pitch, apiKey }) => {
+socket.on('round-start', ({ round, total, lat, lng, heading, pitch }) => {
   show('host-game');
   document.getElementById('sidebar-round').textContent = `Round ${round} / ${total}`;
   document.getElementById('guess-count').textContent = `0 / ? guessed`;
   document.getElementById('guess-chips').innerHTML = '';
   document.getElementById('guess-progress').style.width = '0%';
   setTimer(60);
-  showPanorama(lat, lng, heading, pitch, apiKey);
+  fetch('/api/maps-key')
+    .then(r => r.json())
+    .then(({ key, error }) => {
+      if (error || !key) { setPanoError('No API key set — add MAPS_API_KEY in Railway variables'); return; }
+      showPanorama(lat, lng, heading, pitch, key);
+    })
+    .catch(() => setPanoError('Could not reach server for API key'));
 });
 
 socket.on('timer-tick', ({ timeLeft }) => setTimer(timeLeft));
