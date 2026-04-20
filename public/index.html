@@ -5,101 +5,348 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GeoGuesser Live</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Editorial tokens ── */
+    body.editorial { background: #1a1a1a; color: #e8e2d4; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+
+    /* Top nav */
+    .ed-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 32px; background: rgba(26,26,26,0.4); backdrop-filter: blur(8px);
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .ed-nav-left, .ed-nav-right { display: flex; gap: 24px; align-items: center; flex: 1; }
+    .ed-nav-right { justify-content: flex-end; }
+    .ed-nav-logo {
+      font-family: 'Anton', sans-serif; font-size: 1.3rem; letter-spacing: 0.04em;
+      color: #e8e2d4;
+    }
+    .ed-nav a { color: #e8e2d4; opacity: 0.85; transition: opacity 0.2s; }
+    .ed-nav a:hover { opacity: 1; text-decoration: none; }
+
+    /* Hero */
+    .ed-hero {
+      position: relative; height: 100vh; min-height: 640px;
+      overflow: hidden; display: flex; align-items: center; justify-content: center;
+    }
+    .ed-hero-img {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0.55) 100%),
+        url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2400&q=80&auto=format&fit=crop');
+      background-size: cover; background-position: center;
+      filter: saturate(1.1);
+    }
+    .ed-hero-badge {
+      position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
+      background: #ff5a1f; color: #1a1a1a;
+      padding: 10px 14px; font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.3;
+      max-width: 180px; text-align: left;
+      animation: fadeIn 1s 0.4s ease both;
+      z-index: 3;
+    }
+    .ed-hero-headline {
+      position: relative; z-index: 2;
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(4rem, 14vw, 13rem); line-height: 0.88;
+      letter-spacing: -0.01em; text-transform: uppercase;
+      color: #f4eede; text-align: center;
+      width: 100%; padding: 0 24px;
+    }
+    .ed-hero-headline .l1 { display: block; text-align: left; padding-left: 6vw; }
+    .ed-hero-headline .l2 { display: block; text-align: right; padding-right: 6vw; color: #f4eede; }
+    .ed-hero-headline .l3 { display: block; text-align: center; }
+    .ed-hero-scroll {
+      position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+      color: #f4eede;
+    }
+    .scroll-arrow {
+      width: 40px; height: 40px; border-radius: 50%; background: #ff5a1f;
+      display: flex; align-items: center; justify-content: center;
+      color: #1a1a1a; font-size: 1.1rem; animation: bounce 2s infinite;
+    }
+    @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+
+    /* Cream section */
+    .ed-cream {
+      background: #e6e0d0;
+      color: #1a1a1a;
+      padding: 100px 32px 80px;
+    }
+    .ed-section-tag {
+      display: inline-block;
+      font-family: 'Inter', sans-serif; font-weight: 700;
+      font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase;
+      padding: 6px 10px; background: #ff5a1f; color: #1a1a1a;
+      margin-bottom: 20px;
+    }
+    .ed-section-head {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(3.5rem, 10vw, 8.5rem); line-height: 0.9;
+      letter-spacing: -0.01em; text-transform: uppercase;
+      margin-bottom: 56px;
+    }
+    .ed-split-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 24px; }
+    .ed-split-head .side { font-family: 'Anton', sans-serif; font-size: clamp(3rem, 9vw, 7rem); line-height: 0.9; letter-spacing: -0.01em; }
+
+    /* Play cards */
+    .ed-cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1280px; margin: 0 auto; }
+    @media (max-width: 768px) { .ed-cards-grid { grid-template-columns: 1fr; } }
+
+    .ed-card {
+      position: relative; overflow: hidden; border-radius: 4px;
+      aspect-ratio: 4/5; min-height: 420px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      padding: 28px; color: #f4eede;
+      transition: transform 0.4s ease; cursor: pointer;
+    }
+    .ed-card:hover { transform: translateY(-6px); }
+    .ed-card::before {
+      content: ''; position: absolute; inset: 0; z-index: 0;
+      background-size: cover; background-position: center;
+      transition: transform 0.6s ease;
+    }
+    .ed-card:hover::before { transform: scale(1.05); }
+    .ed-card::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.3) 100%);
+      z-index: 1;
+    }
+    .ed-card > * { position: relative; z-index: 2; }
+    .ed-card-host::before {
+      background-image: url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1200&q=80&auto=format&fit=crop');
+    }
+    .ed-card-join::before {
+      background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1200&q=80&auto=format&fit=crop');
+    }
+
+    .ed-card h3 {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(2.6rem, 6vw, 4.5rem); line-height: 0.9; letter-spacing: -0.01em;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .ed-card p { color: rgba(244,238,222,0.85); font-size: 0.95rem; max-width: 380px; }
+    .ed-card-form { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+    .ed-card-form label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+      color: rgba(244,238,222,0.7); margin-bottom: 4px; display: block;
+    }
+    .ed-input {
+      width: 100%; padding: 14px 16px; background: rgba(244,238,222,0.1);
+      border: 1.5px solid rgba(244,238,222,0.2); color: #f4eede; font-size: 1rem;
+      font-family: inherit; border-radius: 4px; outline: none; backdrop-filter: blur(4px);
+    }
+    .ed-input::placeholder { color: rgba(244,238,222,0.5); }
+    .ed-input:focus { border-color: #ff5a1f; background: rgba(244,238,222,0.15); }
+    .ed-input.error { border-color: #ff5a1f; animation: shake 0.3s; }
+    .ed-input.code-in {
+      font-family: 'Anton', sans-serif; font-size: 1.6rem; letter-spacing: 0.3em;
+      text-align: center; text-transform: uppercase;
+    }
+
+    .ed-rounds { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+    .ed-rounds-btn {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(244,238,222,0.1); border: 1.5px solid rgba(244,238,222,0.3);
+      color: #f4eede; font-size: 1.3rem; cursor: pointer; transition: all 0.2s;
+    }
+    .ed-rounds-btn:hover { background: #ff5a1f; border-color: #ff5a1f; color: #1a1a1a; }
+    .ed-rounds-val { font-family: 'Anton', sans-serif; font-size: 2.4rem; min-width: 40px; text-align: center; color: #f4eede; }
+
+    .ed-cta {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 16px 22px; background: #ff5a1f; color: #1a1a1a;
+      border: none; font-family: 'Inter', sans-serif; font-weight: 800;
+      font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase;
+      cursor: pointer; border-radius: 4px; transition: all 0.2s;
+      width: 100%; justify-content: center;
+    }
+    .ed-cta:hover { background: #f4eede; }
+    .ed-cta-arrow {
+      width: 22px; height: 22px; border-radius: 50%; background: #1a1a1a; color: #ff5a1f;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;
+      transition: transform 0.2s;
+    }
+    .ed-cta:hover .ed-cta-arrow { transform: translateX(3px); }
+
+    /* How it works */
+    .ed-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1280px; margin: 0 auto; }
+    @media (max-width: 768px) { .ed-steps { grid-template-columns: 1fr; } }
+    .ed-step { padding: 24px 0; border-top: 1px solid rgba(26,26,26,0.2); }
+    .ed-step-num { font-family: 'Anton', sans-serif; font-size: 3rem; color: #ff5a1f; line-height: 1; margin-bottom: 12px; }
+    .ed-step h4 {
+      font-family: 'Anton', sans-serif; font-size: 1.6rem; letter-spacing: 0; text-transform: uppercase;
+      margin-bottom: 8px; line-height: 1;
+    }
+    .ed-step p { color: #5a5348; font-size: 0.95rem; line-height: 1.55; }
+
+    /* Footer */
+    .ed-footer {
+      background: #1a1a1a; color: rgba(244,238,222,0.6);
+      padding: 40px 32px; text-align: center; font-size: 0.82rem;
+      letter-spacing: 0.08em;
+    }
+    .ed-footer strong { color: #f4eede; font-family: 'Anton', sans-serif; letter-spacing: 0.04em; font-size: 1rem; }
+  </style>
 </head>
-<body class="landing-page">
+<body class="editorial">
 
-<div class="landing-bg">
-  <div class="globe-ring"></div>
-  <div class="globe-ring r2"></div>
-  <div class="globe-ring r3"></div>
-</div>
-
-<header class="landing-header fade-in">
-  <div class="logo">
-    <span class="logo-icon">🌍</span>
-    <span class="logo-text">GeoGuesser <span class="logo-live">LIVE</span></span>
+<!-- NAV -->
+<nav class="ed-nav">
+  <div class="ed-nav-left">
+    <a href="#how">How it works</a>
+    <a href="#play">Play now</a>
   </div>
-  <p class="tagline">Multiplayer geography challenge — big screen + everyone's phone</p>
-</header>
+  <div class="ed-nav-logo">🌍 GEOGUESSER LIVE</div>
+  <div class="ed-nav-right">
+    <a href="#play">Join &nbsp;↗</a>
+  </div>
+</nav>
 
-<!-- Full landing (no code in URL) -->
-<div class="landing-cards fade-in" id="full-landing">
+<!-- HERO -->
+<section class="ed-hero">
+  <div class="ed-hero-img"></div>
+  <h1 class="ed-hero-headline">
+    <span class="l1">Guess</span>
+    <span class="ed-hero-badge">
+      MULTIPLAYER<br>GEOGRAPHY GAME —<br>LIVE ON BIG SCREEN
+    </span>
+    <span class="l2">The</span>
+    <span class="l3">World</span>
+  </h1>
+  <a class="ed-hero-scroll" href="#play">
+    <span>Start Playing</span>
+    <span class="scroll-arrow">↓</span>
+  </a>
+</section>
 
-  <!-- Create Game -->
-  <div class="card landing-card">
-    <div class="card-icon">🖥️</div>
-    <h2>Host a Game</h2>
-    <p>Open this on a big screen. Players join from their phones.</p>
+<!-- PLAY SECTION -->
+<section class="ed-cream" id="play">
+  <span class="ed-section-tag">Play as</span>
+  <div class="ed-split-head">
+    <span class="side">HOST</span>
+    <span class="side" style="color:#ff5a1f">or</span>
+    <span class="side">PLAYER</span>
+  </div>
 
-    <div class="form-group">
-      <label>Number of rounds</label>
-      <div class="rounds-picker">
-        <button class="rounds-btn" id="rounds-minus">−</button>
-        <span class="rounds-val" id="rounds-val">5</span>
-        <button class="rounds-btn" id="rounds-plus">+</button>
+  <div class="ed-cards-grid" style="margin-top:56px">
+
+    <!-- HOST CARD -->
+    <div class="ed-card ed-card-host">
+      <div>
+        <span class="ed-section-tag" style="background:#f4eede;color:#1a1a1a">On a big screen</span>
+        <h3>Host<br>a game</h3>
+        <p>Create a room, drop it on the TV, watch friends scramble to pin the map.</p>
+      </div>
+      <div class="ed-card-form">
+        <div>
+          <label>Number of rounds</label>
+          <div class="ed-rounds">
+            <button class="ed-rounds-btn" id="rounds-minus">−</button>
+            <span class="ed-rounds-val" id="rounds-val">5</span>
+            <button class="ed-rounds-btn" id="rounds-plus">+</button>
+          </div>
+        </div>
+        <button class="ed-cta" id="create-btn">
+          Create game
+          <span class="ed-cta-arrow">→</span>
+        </button>
       </div>
     </div>
 
-    <button class="btn btn-primary btn-full btn-lg" id="create-btn">
-      Create Game &nbsp;→
-    </button>
+    <!-- JOIN CARD -->
+    <div class="ed-card ed-card-join">
+      <div>
+        <span class="ed-section-tag" style="background:#f4eede;color:#1a1a1a">On your phone</span>
+        <h3>Join<br>a game</h3>
+        <p>Enter the 4-letter code shown on the host screen and drop your pin.</p>
+      </div>
+      <div class="ed-card-form">
+        <div>
+          <label>Room code</label>
+          <input type="text" id="join-code" class="ed-input code-in" placeholder="ABCD"
+                 maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        </div>
+        <div>
+          <label>Your name</label>
+          <input type="text" id="join-name" class="ed-input" placeholder="Enter your name…" maxlength="20">
+        </div>
+        <button class="ed-cta" id="join-btn">
+          Join game
+          <span class="ed-cta-arrow">→</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="ed-cream" id="how" style="padding-top:40px">
+  <span class="ed-section-tag">How it works</span>
+  <div class="ed-section-head">
+    Round after<br><span style="color:#ff5a1f">round</span>.
   </div>
 
-  <!-- Join Game -->
-  <div class="card landing-card">
-    <div class="card-icon">📱</div>
-    <h2>Join a Game</h2>
-    <p>Enter the 4-letter code shown on the host screen.</p>
-
-    <div class="form-group">
-      <label>Room Code</label>
-      <input type="text" id="join-code" class="input code-input" placeholder="ABCD"
-             maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+  <div class="ed-steps">
+    <div class="ed-step">
+      <div class="ed-step-num">01</div>
+      <h4>Drop a Street View</h4>
+      <p>A random spot from anywhere on Earth flashes on the host screen. You get 60 seconds.</p>
     </div>
-
-    <div class="form-group">
-      <label>Your Name</label>
-      <input type="text" id="join-name" class="input" placeholder="Enter your name…" maxlength="20">
+    <div class="ed-step">
+      <div class="ed-step-num">02</div>
+      <h4>Pin your guess</h4>
+      <p>Players tap the map on their phones to place a pin where they think it is.</p>
     </div>
-
-    <button class="btn btn-accent btn-full btn-lg" id="join-btn">
-      Join Game &nbsp;→
-    </button>
+    <div class="ed-step">
+      <div class="ed-step-num">03</div>
+      <h4>Closer = more points</h4>
+      <p>5,000 points max. Distance decays the score. Winner after all rounds takes the crown.</p>
+    </div>
   </div>
-</div>
+</section>
 
-<!-- QR join view (code in URL) -->
-<div class="fade-in" id="qr-landing" style="display:none; width:100%; max-width:420px;">
-  <div class="card landing-card">
-    <div class="card-icon">📍</div>
-    <h2>You're joining a game!</h2>
-    <p>Enter your name to jump in.</p>
-
-    <div class="form-group">
-      <label>Your Name</label>
-      <input type="text" id="qr-join-name" class="input" placeholder="Enter your name…"
+<!-- QR JOIN (only shows if ?code=XXXX in URL) -->
+<section class="ed-cream" id="qr-join-section" style="display:none; padding: 80px 32px 120px">
+  <div style="max-width:520px; margin:0 auto; text-align:center">
+    <span class="ed-section-tag">You're almost in</span>
+    <div class="ed-section-head" style="font-size:clamp(3rem, 8vw, 5rem)">
+      Enter your<br><span style="color:#ff5a1f">name</span>.
+    </div>
+    <div class="ed-card-form" style="max-width:400px;margin:0 auto">
+      <input type="text" id="qr-join-name" placeholder="Your name…" class="ed-input"
+             style="background:rgba(26,26,26,0.05);color:#1a1a1a;border-color:rgba(26,26,26,0.2);text-align:center;font-size:1.2rem;padding:18px"
              maxlength="20" autocomplete="off">
+      <button class="ed-cta" id="qr-join-btn">
+        Join game
+        <span class="ed-cta-arrow">→</span>
+      </button>
     </div>
-
-    <button class="btn btn-accent btn-full btn-lg" id="qr-join-btn">
-      Join Game &nbsp;→
-    </button>
   </div>
-</div>
+</section>
 
+<footer class="ed-footer">
+  <strong>🌍 GEOGUESSER LIVE</strong> &nbsp;·&nbsp; Built for game nights, classrooms, and anyone curious about the world.
+</footer>
 
 <div class="toast" id="toast"></div>
 
 <script>
   let rounds = 5;
-
-  // QR scan: show only the name input
   const urlCode = new URLSearchParams(location.search).get('code');
+
+  // QR-scan mode — hide full landing, show just the name input
   if (urlCode) {
-    document.getElementById('full-landing').style.display = 'none';
-    document.getElementById('qr-landing').style.display = 'block';
+    document.getElementById('play').style.display = 'none';
+    document.getElementById('how').style.display = 'none';
+    document.getElementById('qr-join-section').style.display = 'block';
     document.getElementById('qr-join-btn').onclick = () => {
       const name = document.getElementById('qr-join-name').value.trim();
       if (!name) { shake('qr-join-name'); showToast('Enter your name'); return; }
@@ -121,20 +368,20 @@
     document.getElementById('rounds-val').textContent = rounds;
   };
 
-  // Auto-uppercase join code
+  // Uppercase code
   document.getElementById('join-code').addEventListener('input', (e) => {
     const pos = e.target.selectionStart;
     e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
     e.target.setSelectionRange(pos, pos);
   });
 
-  // Create game
+  // Create
   document.getElementById('create-btn').onclick = () => {
     sessionStorage.setItem('geo_rounds', rounds);
     location.href = '/host.html';
   };
 
-  // Join game
+  // Join
   document.getElementById('join-btn').onclick = joinGame;
   document.getElementById('join-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGame(); });
   document.getElementById('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('join-name').focus(); });
@@ -150,18 +397,22 @@
 
   function shake(id) {
     const el = document.getElementById(id);
-    el.classList.remove('error');
-    void el.offsetWidth;
-    el.classList.add('error');
+    el.classList.remove('error'); void el.offsetWidth; el.classList.add('error');
     setTimeout(() => el.classList.remove('error'), 600);
   }
-
   function showToast(msg) {
     const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
+    t.textContent = msg; t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 2500);
   }
+
+  // Smooth scroll
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', (e) => {
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+    });
+  });
 </script>
 </body>
 </html>
