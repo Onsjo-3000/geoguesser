@@ -314,20 +314,40 @@
 </section>
 
 <!-- QR JOIN (only shows if ?code=XXXX in URL) -->
-<section class="ed-cream" id="qr-join-section" style="display:none; padding: 80px 32px 120px">
-  <div style="max-width:520px; margin:0 auto; text-align:center">
-    <span class="ed-section-tag">You're almost in</span>
-    <div class="ed-section-head" style="font-size:clamp(3rem, 8vw, 5rem)">
-      Enter your<br><span style="color:#ff5a1f">name</span>.
+<section id="qr-join-section" style="display:none; position:relative; min-height:100dvh; overflow:hidden;">
+  <div class="ed-hero-img" style="position:absolute;inset:0;
+    background-image:
+      linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0.75) 100%),
+      url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=2400&q=80&auto=format&fit=crop');
+    background-size:cover; background-position:center;"></div>
+
+  <div style="position:relative; z-index:2; min-height:100dvh; display:flex; flex-direction:column; justify-content:space-between; padding:80px 24px 32px;">
+
+    <div style="text-align:center; margin-top:20px;">
+      <span class="ed-section-tag">You're joining</span>
+      <h1 class="ed-hero-headline" style="padding:0; margin-top:20px; font-size:clamp(3.5rem, 12vw, 9rem);">
+        <span class="l1" style="text-align:center; padding:0;">Drop</span>
+        <span class="l3" style="color:#ff5a1f;">your</span>
+        <span class="l2" style="text-align:center; padding:0;">name</span>
+      </h1>
     </div>
-    <div class="ed-card-form" style="max-width:400px;margin:0 auto">
-      <input type="text" id="qr-join-name" placeholder="Your name…" class="ed-input"
-             style="background:rgba(26,26,26,0.05);color:#1a1a1a;border-color:rgba(26,26,26,0.2);text-align:center;font-size:1.2rem;padding:18px"
-             maxlength="20" autocomplete="off">
-      <button class="ed-cta" id="qr-join-btn">
-        Join game
-        <span class="ed-cta-arrow">→</span>
-      </button>
+
+    <div style="max-width:420px; width:100%; margin:0 auto;">
+      <div style="background:rgba(20,20,20,0.55); backdrop-filter:blur(10px); border:1px solid rgba(244,238,222,0.15); border-radius:4px; padding:24px; display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <label style="font-size:0.7rem; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:rgba(244,238,222,0.7); display:block; margin-bottom:6px;">Your name</label>
+          <input type="text" id="qr-join-name" class="ed-input" placeholder="Enter your name…"
+                 maxlength="20" autocomplete="off"
+                 style="text-align:center; font-size:1.2rem; padding:16px;">
+        </div>
+        <button class="ed-cta" id="qr-join-btn">
+          Join game
+          <span class="ed-cta-arrow">→</span>
+        </button>
+      </div>
+      <div style="text-align:center; margin-top:16px; font-size:0.72rem; letter-spacing:0.14em; text-transform:uppercase; font-weight:700; color:rgba(244,238,222,0.6);">
+        Room <span style="color:#ff5a1f" id="qr-code-display">—</span>
+      </div>
     </div>
   </div>
 </section>
@@ -344,9 +364,14 @@
 
   // QR-scan mode — hide full landing, show just the name input
   if (urlCode) {
-    document.getElementById('play').style.display = 'none';
-    document.getElementById('how').style.display = 'none';
+    document.querySelector('.ed-nav').style.display   = 'none';
+    document.querySelector('.ed-hero').style.display  = 'none';
+    document.getElementById('play').style.display     = 'none';
+    document.getElementById('how').style.display      = 'none';
+    document.querySelector('.ed-footer').style.display = 'none';
     document.getElementById('qr-join-section').style.display = 'block';
+    document.getElementById('qr-code-display').textContent = urlCode.toUpperCase();
+
     document.getElementById('qr-join-btn').onclick = () => {
       const name = document.getElementById('qr-join-name').value.trim();
       if (!name) { shake('qr-join-name'); showToast('Enter your name'); return; }
