@@ -5,305 +5,499 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GeoGuesser Live — Play</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
   <style>
-    html, body { overflow: hidden; touch-action: none; }
-    .leaflet-container { background: #1a2035; }
+    :root {
+      --cream: #e6e0d0;
+      --cream-light: #f4eede;
+      --ink: #1a1a1a;
+      --orange: #ff5a1f;
+      --muted: #5a5348;
+    }
+    html, body { height: 100dvh; overflow: hidden; touch-action: none; background: var(--cream); color: var(--ink); font-family: 'Inter', sans-serif; }
+    .leaflet-container { background: #c9c2ae; }
     .leaflet-control-attribution { display: none; }
+
+    .play-wrap { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Topbar ── */
+    .play-topbar {
+      display: none; align-items: center; gap: 12px;
+      padding: 12px 16px; background: var(--ink); color: var(--cream-light);
+      flex-shrink: 0;
+    }
+    .play-topbar.active { display: flex; }
+    .play-topbar .round-badge {
+      background: var(--orange); color: var(--ink);
+      padding: 6px 10px; font-size: 0.7rem; font-weight: 800;
+      letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .play-topbar .timer-mini {
+      margin-left: auto; font-family: 'Anton', sans-serif; font-size: 1.8rem;
+      min-width: 46px; text-align: right; letter-spacing: 0.04em;
+    }
+    .play-topbar .timer-mini.warn   { color: #ffd166; }
+    .play-topbar .timer-mini.urgent { color: var(--orange); animation: pulse 0.5s infinite; }
+
+    /* ── Sections ── */
+    .section { display: none; flex: 1; overflow: hidden; position: relative; }
+    .section.active { display: flex; }
+
+    /* ── Lobby / Waiting / Results / GameOver layouts ── */
+    .scene {
+      flex: 1; overflow: auto; padding: 28px 24px 40px;
+      display: flex; flex-direction: column; gap: 20px; align-items: stretch;
+    }
+
+    /* Dark cinematic scene (lobby, waiting, gameover) */
+    .scene.dark {
+      position: relative; color: var(--cream-light);
+      background: var(--ink);
+    }
+    .scene.dark::before {
+      content: ''; position: absolute; inset: 0;
+      background-image:
+        linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.85) 100%),
+        url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=80&auto=format&fit=crop');
+      background-size: cover; background-position: center;
+      z-index: 0;
+    }
+    .scene.dark > * { position: relative; z-index: 1; }
+
+    /* Tag / Head */
+    .ed-tag {
+      display: inline-block;
+      font-weight: 800; font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 6px 10px; background: var(--orange); color: var(--ink);
+      align-self: flex-start;
+    }
+    .ed-head {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(3rem, 14vw, 5.5rem); line-height: 0.9;
+      letter-spacing: -0.01em; text-transform: uppercase; margin: 0;
+    }
+    .ed-head .accent { color: var(--orange); }
+
+    .muted { color: rgba(244,238,222,0.75); font-size: 0.95rem; line-height: 1.5; }
+    .scene:not(.dark) .muted { color: var(--muted); }
+
+    /* Player list card */
+    .roster {
+      background: rgba(20,20,20,0.55); backdrop-filter: blur(10px);
+      border: 1px solid rgba(244,238,222,0.15); border-radius: 4px;
+      padding: 16px;
+    }
+    .scene:not(.dark) .roster {
+      background: rgba(26,26,26,0.04); border: 1px solid rgba(26,26,26,0.12);
+    }
+    .roster h5 {
+      font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 800;
+      margin-bottom: 10px; color: rgba(244,238,222,0.7);
+    }
+    .scene:not(.dark) .roster h5 { color: var(--muted); }
+    .roster ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .roster li {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; font-weight: 600; font-size: 0.95rem;
+      border-radius: 2px;
+    }
+    .roster li.me {
+      background: rgba(255,90,31,0.15);
+      border-left: 2px solid var(--orange);
+    }
+    .avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--orange); color: var(--ink);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Anton', sans-serif; font-size: 0.85rem; text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    /* Leaderboard */
+    .lb { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .lb li {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px;
+      background: rgba(244,238,222,0.06);
+      border-radius: 2px;
+    }
+    .scene:not(.dark) .lb li { background: rgba(26,26,26,0.06); }
+    .lb li.me {
+      background: rgba(255,90,31,0.2);
+      border-left: 2px solid var(--orange);
+    }
+    .lb-rank {
+      font-family: 'Anton', sans-serif; font-size: 1.3rem; min-width: 28px;
+    }
+    .lb-rank.g1 { color: #ffd166; }
+    .lb-rank.g2 { color: #c0c0c0; }
+    .lb-rank.g3 { color: #cd7f32; }
+    .lb-name { flex: 1; font-weight: 600; }
+    .lb-score { font-family: 'Anton', sans-serif; font-size: 1.3rem; color: var(--orange); }
+
+    /* Big score reveal */
+    .score-reveal {
+      font-family: 'Anton', sans-serif;
+      font-size: clamp(4.5rem, 22vw, 9rem); line-height: 1;
+      color: var(--orange);
+    }
+    .dist-line {
+      font-size: 1rem; font-weight: 600; color: rgba(244,238,222,0.85);
+    }
+    .scene:not(.dark) .dist-line { color: var(--muted); }
+    .dist-line strong { color: var(--cream-light); font-weight: 800; }
+    .scene:not(.dark) .dist-line strong { color: var(--ink); }
+
+    /* CTA */
+    .ed-cta {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 16px 22px; background: var(--orange); color: var(--ink);
+      border: none; font-weight: 800; font-size: 0.85rem;
+      letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+      border-radius: 4px; width: 100%; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .ed-cta:hover:not(:disabled) { background: var(--cream-light); }
+    .ed-cta:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ed-cta-arrow {
+      width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--orange);
+      display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;
+    }
+
+    /* ── Game (Leaflet map) ── */
+    #play-game { position: relative; }
     #guess-map { position: absolute; inset: 0; }
-    .submit-bar { z-index: 500; }
+    .submit-bar {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      padding: 12px 16px 16px; z-index: 500;
+      background: linear-gradient(transparent, rgba(26,26,26,0.95) 30%);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .submit-hint {
+      text-align: center; font-size: 0.7rem; letter-spacing: 0.14em;
+      text-transform: uppercase; font-weight: 700; color: rgba(244,238,222,0.8);
+    }
+
+    /* Waiting dots */
+    .waiting-line {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+      color: rgba(244,238,222,0.7);
+    }
+    .scene:not(.dark) .waiting-line { color: var(--muted); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.2s infinite; }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--ink); color: var(--cream-light); border: 1px solid rgba(244,238,222,0.15);
+      padding: 12px 20px; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.04em;
+      border-radius: 4px; transition: transform 0.3s ease; z-index: 9999; white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Pin */
+    .guess-pin { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4)); }
+
+    /* Animations */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+    .fade-up { animation: fadeUp 0.5s ease both; }
   </style>
 </head>
-<body class="play-page">
+<body>
 
-<!-- Top bar (hidden until game starts) -->
-<div class="play-topbar" id="play-topbar" style="display:none">
-  <span class="round-info" id="round-info">Round 1/5</span>
-  <span class="timer-mini" id="timer-mini">60</span>
-</div>
+<div class="play-wrap">
 
-<div class="play-body" id="play-body">
+  <!-- Topbar during play -->
+  <div class="play-topbar" id="play-topbar">
+    <span class="round-badge" id="round-info">R 1/5</span>
+    <span class="timer-mini" id="timer-mini">60</span>
+  </div>
 
-  <!-- ── LOBBY ─────────────────────────────────────────────── -->
+  <!-- ── LOBBY ── -->
   <section class="section active" id="play-lobby">
-    <div style="font-size:2.5rem">🌍</div>
-    <h2 id="lobby-welcome">Joined!</h2>
-    <div class="play-name-display" id="lobby-name"></div>
-    <p class="waiting-icon">⏳</p>
-    <p>Waiting for the host to start…</p>
-    <div style="margin-top:12px;width:100%;max-width:340px;">
-      <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;margin-bottom:8px;">Players in room</div>
-      <ul class="player-list" id="play-player-list"></ul>
+    <div class="scene dark">
+      <div class="fade-up">
+        <span class="ed-tag">You're in</span>
+        <h1 class="ed-head" style="margin-top:16px">
+          Ready,<br><span class="accent" id="lobby-name">you</span>?
+        </h1>
+        <p class="muted" style="margin-top:12px">Host starts the game. We'll drop you straight into round one.</p>
+      </div>
+
+      <div class="roster fade-up" style="margin-top:12px">
+        <h5>Players in room</h5>
+        <ul id="play-player-list"></ul>
+      </div>
+
+      <div style="margin-top:auto" class="waiting-line">
+        Waiting for host <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
     </div>
   </section>
 
-  <!-- ── GUESSING MAP ───────────────────────────────────────── -->
-  <section class="section" id="play-game" style="flex:1;position:relative;overflow:hidden;display:none;">
+  <!-- ── GAME (map) ── -->
+  <section class="section" id="play-game">
     <div id="guess-map"></div>
     <div class="submit-bar">
-      <div class="submit-hint" id="submit-hint">Tap the map to place your guess</div>
-      <button class="btn btn-primary btn-full btn-lg" id="submit-btn" disabled>
-        Submit Guess
+      <div class="submit-hint" id="submit-hint">Tap the map to place your pin</div>
+      <button class="ed-cta" id="submit-btn" disabled>
+        Submit guess
+        <span class="ed-cta-arrow">→</span>
       </button>
     </div>
   </section>
 
-  <!-- ── WAITING AFTER GUESS ───────────────────────────────── -->
+  <!-- ── WAITING after guess ── -->
   <section class="section" id="play-waiting">
-    <div style="font-size:3rem">✅</div>
-    <h2>Guess submitted!</h2>
-    <div id="waiting-score" style="font-family:'Space Grotesk',monospace;font-size:2.5rem;font-weight:800;color:var(--primary);"></div>
-    <div id="waiting-dist" class="distance-label"></div>
-    <p class="pulse" style="margin-top:8px;">Waiting for other players…</p>
+    <div class="scene dark">
+      <div class="fade-up">
+        <span class="ed-tag">Locked in</span>
+        <h1 class="ed-head" style="margin-top:16px">Guess<br><span class="accent">submitted</span>.</h1>
+      </div>
+
+      <div style="margin-top:12px">
+        <div class="score-reveal" id="waiting-score"></div>
+        <div class="dist-line" id="waiting-dist"></div>
+      </div>
+
+      <div style="margin-top:auto" class="waiting-line">
+        Waiting for other players <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+    </div>
   </section>
 
-  <!-- ── ROUND RESULTS ─────────────────────────────────────── -->
+  <!-- ── ROUND RESULTS ── -->
   <section class="section" id="play-results-screen">
-    <div style="font-size:2.5rem" id="results-emoji">📍</div>
-    <div class="score-reveal" id="results-score">0</div>
-    <div class="distance-label" id="results-dist"></div>
-    <div class="divider" style="width:100%;max-width:340px;"></div>
-    <div class="play-lb" id="play-lb-wrap">
-      <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;margin-bottom:8px;">Leaderboard</div>
-      <ul class="leaderboard" id="play-leaderboard"></ul>
+    <div class="scene" style="background:var(--cream)">
+      <div class="fade-up">
+        <span class="ed-tag">Round result</span>
+        <h1 class="ed-head" style="margin-top:16px; color:var(--ink)">
+          <span id="results-verdict">You scored</span>
+        </h1>
+      </div>
+
+      <div style="display:flex; align-items:baseline; gap:14px; flex-wrap:wrap">
+        <div class="score-reveal" id="results-score">+0</div>
+      </div>
+      <div class="dist-line" id="results-dist"></div>
+
+      <div style="margin-top:8px">
+        <h5 style="font-size:0.7rem; letter-spacing:0.14em; text-transform:uppercase; font-weight:800; color:var(--muted); margin-bottom:10px;">Leaderboard</h5>
+        <ul class="lb" id="play-leaderboard"></ul>
+      </div>
+
+      <div style="margin-top:auto" class="waiting-line" id="results-waiting-msg">
+        Waiting for host <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
     </div>
-    <p class="pulse" style="font-size:0.85rem;color:var(--text-muted);" id="results-waiting-msg">Waiting for host…</p>
   </section>
 
-  <!-- ── GAME OVER ──────────────────────────────────────────── -->
+  <!-- ── GAME OVER ── -->
   <section class="section" id="play-gameover-screen">
-    <div style="font-size:3rem">🏆</div>
-    <h2>Game Over!</h2>
-    <div class="score-reveal" id="final-score"></div>
-    <div style="font-size:1rem;color:var(--text-muted);" id="final-rank"></div>
-    <div class="play-lb" style="margin-top:16px;">
-      <ul class="leaderboard" id="play-final-leaderboard"></ul>
+    <div class="scene dark">
+      <div class="fade-up">
+        <span class="ed-tag">Game over</span>
+        <h1 class="ed-head" style="margin-top:16px">
+          You finished<br><span class="accent" id="final-rank">#1</span>.
+        </h1>
+      </div>
+
+      <div>
+        <div class="score-reveal" id="final-score">0</div>
+        <div class="dist-line">total points</div>
+      </div>
+
+      <div>
+        <h5 style="font-size:0.7rem; letter-spacing:0.14em; text-transform:uppercase; font-weight:800; color:rgba(244,238,222,0.7); margin-bottom:10px;">Final standings</h5>
+        <ul class="lb" id="play-final-leaderboard"></ul>
+      </div>
+
+      <button class="ed-cta" style="margin-top:8px" onclick="location.href='/'">
+        Play again
+        <span class="ed-cta-arrow">→</span>
+      </button>
     </div>
-    <button class="btn btn-primary btn-lg" style="margin-top:8px;" onclick="location.href='/'">
-      Play Again
-    </button>
   </section>
 
-</div><!-- play-body -->
+</div>
 
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// ── State ──────────────────────────────────────────────────────
 const socket = io();
 let myName = '';
-let guessMap = null;
-let guessMarker = null;
-let submitted = false;
-let timerVal = 60;
+let guessMap = null, guessMarker = null, submitted = false;
 
-// ── Helpers ────────────────────────────────────────────────────
 function show(id) {
-  document.querySelectorAll('#play-body > .section').forEach(s => {
-    s.classList.remove('active');
-    s.style.display = 'none';
-  });
-  const el = document.getElementById(id);
-  el.classList.add('active');
-  el.style.display = 'flex';
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
   if (id === 'play-game') {
-    el.style.display = 'block';
     setTimeout(() => guessMap && guessMap.invalidateSize(), 100);
   }
+  const showTopbar = id === 'play-game';
+  document.getElementById('play-topbar').classList.toggle('active', showTopbar);
 }
-
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2800);
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
 }
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-function esc(str) {
-  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-function renderLB(list, targetId, highlightName) {
-  const medals = ['🥇','🥈','🥉'];
-  const classes = ['gold','silver','bronze'];
+function renderLB(list, targetId, highlight) {
   const ul = document.getElementById(targetId);
   ul.innerHTML = '';
   list.forEach((p, i) => {
     const li = document.createElement('li');
-    li.className = 'lb-row ' + (classes[i] || '') + (p.name === highlightName ? ' your-row' : '');
+    if (p.name === highlight) li.className = 'me';
+    const g = i < 3 ? `g${i+1}` : '';
     li.innerHTML = `
-      <span class="lb-rank">${medals[i] || (i+1)}</span>
+      <span class="lb-rank ${g}">${i+1}</span>
       <span class="lb-name">${esc(p.name)}</span>
       <span class="lb-score">${p.score.toLocaleString()}</span>`;
     ul.appendChild(li);
   });
 }
-
 function setTimerMini(t) {
   const el = document.getElementById('timer-mini');
   el.textContent = t;
   el.className = 'timer-mini' + (t <= 10 ? ' urgent' : t <= 20 ? ' warn' : '');
 }
 
-// ── Guess map setup ────────────────────────────────────────────
 function initMap() {
   if (guessMap) return;
-  guessMap = L.map('guess-map', {
-    center: [20, 0], zoom: 2,
-    zoomControl: true, attributionControl: false,
-    tap: true,
-  });
+  guessMap = L.map('guess-map', { center: [20, 0], zoom: 2, zoomControl: true, attributionControl: false, tap: true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(guessMap);
+
+  const pinIcon = L.divIcon({
+    className: 'guess-pin',
+    html: `<div style="width:24px;height:30px;background:#ff5a1f;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #f4eede;"></div>`,
+    iconSize: [24, 30], iconAnchor: [12, 30],
+  });
 
   guessMap.on('click', (e) => {
     if (submitted) return;
-    const pinIcon = L.divIcon({
-      className: '',
-      html: `<div style="
-        width:22px;height:28px;
-        background:var(--primary);
-        border-radius:50% 50% 50% 0;
-        transform:rotate(-45deg);
-        border:3px solid #fff;
-        box-shadow:0 2px 10px rgba(0,0,0,0.5);
-      "></div>`,
-      iconSize: [22, 28], iconAnchor: [11, 28],
-    });
-    if (guessMarker) {
-      guessMarker.setLatLng(e.latlng);
-    } else {
-      guessMarker = L.marker(e.latlng, { icon: pinIcon }).addTo(guessMap);
-    }
-    const btn = document.getElementById('submit-btn');
-    btn.disabled = false;
-    document.getElementById('submit-hint').textContent = 'Move pin to refine, then submit';
+    if (guessMarker) guessMarker.setLatLng(e.latlng);
+    else guessMarker = L.marker(e.latlng, { icon: pinIcon }).addTo(guessMap);
+    document.getElementById('submit-btn').disabled = false;
+    document.getElementById('submit-hint').textContent = 'Move pin to refine — hit submit';
   });
 }
 
-// ── Socket events ──────────────────────────────────────────────
-socket.on('joined-room', ({ code, name }) => {
+// ── Socket events ──
+socket.on('joined-room', ({ name }) => {
   myName = name;
   document.getElementById('lobby-name').textContent = name;
 });
-
-socket.on('join-error', (msg) => {
-  showToast(msg);
-  setTimeout(() => location.href = '/', 2000);
-});
+socket.on('join-error', (msg) => { showToast(msg); setTimeout(() => location.href = '/', 2000); });
 
 socket.on('players-update', ({ players }) => {
   const ul = document.getElementById('play-player-list');
   ul.innerHTML = '';
   players.forEach(name => {
     const li = document.createElement('li');
-    li.innerHTML = `<div class="player-avatar">${esc(name[0])}</div>${esc(name)}`;
-    if (name === myName) li.style.borderLeft = '3px solid var(--primary)';
+    if (name === myName) li.className = 'me';
+    li.innerHTML = `<span class="avatar">${esc(name[0])}</span>${esc(name)}`;
     ul.appendChild(li);
   });
 });
 
 socket.on('round-start', ({ round, total }) => {
   submitted = false;
-  guessMarker = null;
+  if (guessMarker) { guessMap.removeLayer(guessMarker); guessMarker = null; }
 
-  document.getElementById('play-topbar').style.display = 'flex';
-  document.getElementById('round-info').textContent = `Round ${round}/${total}`;
+  document.getElementById('round-info').textContent = `R ${round}/${total}`;
   setTimerMini(60);
-
   document.getElementById('submit-btn').disabled = true;
-  document.getElementById('submit-hint').textContent = 'Tap the map to place your guess';
+  document.getElementById('submit-hint').textContent = 'Tap the map to place your pin';
 
   show('play-game');
   initMap();
-
-  // Reset map
-  if (guessMarker) { guessMap.removeLayer(guessMarker); guessMarker = null; }
   guessMap.setView([20, 0], 2);
   setTimeout(() => guessMap.invalidateSize(), 150);
 });
 
 socket.on('timer-tick', ({ timeLeft }) => {
-  timerVal = timeLeft;
   setTimerMini(timeLeft);
   if (timeLeft === 0 && !submitted) {
-    // Time's up — auto-submit center if no pin placed
-    if (!guessMarker) {
-      const center = guessMap.getCenter();
-      socket.emit('submit-guess', { lat: center.lat, lng: center.lng });
+    if (!guessMarker && guessMap) {
+      const c = guessMap.getCenter();
+      socket.emit('submit-guess', { lat: c.lat, lng: c.lng });
     }
     submitted = true;
     show('play-waiting');
     document.getElementById('waiting-score').textContent = '';
-    document.getElementById('waiting-dist').textContent = "Time's up!";
+    document.getElementById('waiting-dist').innerHTML = `Time's up!`;
   }
 });
 
 socket.on('guess-accepted', ({ score, distance }) => {
   document.getElementById('waiting-score').textContent = `+${score.toLocaleString()}`;
-  document.getElementById('waiting-dist').innerHTML = `<span>${distance.toLocaleString()} km</span> from the actual location`;
+  document.getElementById('waiting-dist').innerHTML = `<strong>${distance.toLocaleString()} km</strong> from the actual location`;
   show('play-waiting');
 });
 
 socket.on('round-results', ({ leaderboard, roundScore, distance, guessed, round, total, isLast }) => {
-  // Score reveal
-  const emoji = roundScore > 4000 ? '🎯' : roundScore > 2000 ? '😎' : roundScore > 500 ? '🙂' : '😅';
-  document.getElementById('results-emoji').textContent = emoji;
-  document.getElementById('results-score').textContent = `+${roundScore.toLocaleString()}`;
+  const verdictEl = document.getElementById('results-verdict');
+  if (!guessed) verdictEl.innerHTML = `No guess`;
+  else if (roundScore > 4000) verdictEl.innerHTML = `Bullseye,<br><span class="accent">${esc(myName)}</span>`;
+  else if (roundScore > 2000) verdictEl.innerHTML = `Nice one,<br><span class="accent">${esc(myName)}</span>`;
+  else if (roundScore > 500)  verdictEl.innerHTML = `Close enough.`;
+  else                         verdictEl.innerHTML = `Tough one.`;
 
-  if (guessed && distance !== null) {
-    document.getElementById('results-dist').innerHTML = `<span>${distance.toLocaleString()} km</span> from the actual location`;
-  } else {
-    document.getElementById('results-dist').textContent = "Didn't guess in time";
-  }
+  document.getElementById('results-score').textContent = `+${(roundScore||0).toLocaleString()}`;
+  document.getElementById('results-dist').innerHTML = (guessed && distance !== null)
+    ? `<strong>${distance.toLocaleString()} km</strong> from the actual location`
+    : `Didn't guess in time`;
 
   renderLB(leaderboard, 'play-leaderboard', myName);
-
-  const msg = document.getElementById('results-waiting-msg');
-  msg.textContent = isLast ? 'Waiting for host to show final scores…' : `Waiting for host to start round ${round + 1}…`;
-
+  document.getElementById('results-waiting-msg').innerHTML = isLast
+    ? `Waiting for final scores <span class="dot"></span><span class="dot"></span><span class="dot"></span>`
+    : `Next round loading <span class="dot"></span><span class="dot"></span><span class="dot"></span>`;
   show('play-results-screen');
-  document.getElementById('play-topbar').style.display = 'none';
 });
 
 socket.on('game-over', ({ leaderboard }) => {
   const me = leaderboard.find(p => p.name === myName);
   const rank = leaderboard.findIndex(p => p.name === myName) + 1;
+  const rankStr = rank === 1 ? '#1' : rank === 2 ? '#2' : rank === 3 ? '#3' : `#${rank}`;
+  document.getElementById('final-rank').textContent = rankStr;
   document.getElementById('final-score').textContent = me ? me.score.toLocaleString() : '0';
-  const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
-  document.getElementById('final-rank').textContent = `${rankEmoji} out of ${leaderboard.length} players`;
   renderLB(leaderboard, 'play-final-leaderboard', myName);
   show('play-gameover-screen');
-  document.getElementById('play-topbar').style.display = 'none';
 });
 
-socket.on('host-left', () => {
-  showToast('Host disconnected. Game ended.');
-  setTimeout(() => location.href = '/', 2500);
-});
+socket.on('host-left', () => { showToast('Host disconnected'); setTimeout(() => location.href = '/', 2500); });
 
-// ── Submit guess ───────────────────────────────────────────────
+// ── Submit ──
 document.getElementById('submit-btn').onclick = () => {
   if (submitted || !guessMarker) return;
   submitted = true;
-  const latlng = guessMarker.getLatLng();
-  socket.emit('submit-guess', { lat: latlng.lat, lng: latlng.lng });
+  const ll = guessMarker.getLatLng();
+  socket.emit('submit-guess', { lat: ll.lat, lng: ll.lng });
   document.getElementById('submit-btn').disabled = true;
-  document.getElementById('submit-hint').textContent = 'Guess locked in!';
+  document.getElementById('submit-hint').textContent = 'Guess locked in';
   document.getElementById('waiting-score').textContent = '…';
-  document.getElementById('waiting-dist').textContent = 'Calculating…';
+  document.getElementById('waiting-dist').textContent = 'Calculating';
   show('play-waiting');
 };
 
-// ── Init: join room ────────────────────────────────────────────
+// ── Init ──
 const code = new URLSearchParams(location.search).get('code');
 const name = sessionStorage.getItem('geo_name');
 
 if (!code || !name) {
-  showToast('Missing code or name — redirecting…');
+  showToast('Missing code or name');
   setTimeout(() => location.href = '/', 1500);
 } else {
   myName = name;
